@@ -46,6 +46,9 @@ class app_view(ctk.CTkFrame):
     _frame = self.frames[frame]
     _frame.tkraise()
 
+  def get_frame(self, frame):
+    return self.frames[frame]
+
   def show_start_frame(self):
     self.show_frame(HomeScreen)
       

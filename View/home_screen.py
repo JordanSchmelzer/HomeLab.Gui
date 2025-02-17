@@ -7,7 +7,7 @@ class HomeScreen(ctk.CTkFrame):
       parent: ctk.CTkFrame,
       controller):
     super().__init__(
-      master=parent
+      master=parent,
       )
     self.controller = controller
     self.setup_grid()
@@ -22,8 +22,6 @@ class HomeScreen(ctk.CTkFrame):
     
 
   def create_widgets(self):
-    for row in range(2):
-      for col in range(2):
-        button = ctk.CTkButton(self, text=f'r.{row}, c.{col}')
-        button.grid(row=row,column=col, sticky='news')
+    self.label = ctk.CTkLabel(self, text="HomeScreen")
+    self.label.grid(row=0,rowspan=10,column=0,columnspan=10,sticky='news')
     

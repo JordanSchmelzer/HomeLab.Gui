@@ -1,7 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from View.debug_screen import DebugScreen
-from View.home_screen import HomeScreen
+import customtkinter as ctk
 
 
 class Command(ABC):
@@ -11,19 +10,46 @@ class Command(ABC):
     pass
 
 
-class HomeCommand(Command):
-  def __init__(self, app_controller):
+class ShowFrameCommand(Command):
+  def __init__(
+    self,
+    app_controller,
+    frame: ctk.CTkFrame,
+    ) -> None:
     self._reciever = app_controller
-
-  def execute(self):
-    print(f"HomeCommand: Showing Frame {HomeScreen.__name__}")
-    self._reciever.show_frame(HomeScreen)
-    
-
-class DebugCommand(Command):
-  def __init__(self, app_controller):
-    self._reciever = app_controller
+    self._frame = frame
     
   def execute(self):
-    print(f"DebugCommand: Showing Frame {DebugScreen.__name__}")
-    self._reciever.show_frame(DebugScreen)
+    print(f"ShowFrameCommand: Showing Frame {self._frame.__name__}")
+    self._reciever.show_frame(self._frame)
+
+
+class ChangeBackgroundCommand(Command):
+  def __init__(
+    self,
+    app_controller,
+    frame_id,
+    color: str
+    ) -> None:
+    self._reciever = app_controller
+    self._color = color
+    self._frame = frame_id
+
+  def execute(self):
+    print(
+      f"ChangeBackgroundCommand: Changing frame background from {self._frame} to {self._color}"
+      )
+    self._reciever.change_background_color(self._frame, self._color)
+
+class ExternalDeviceCommand(Command):
+  ''' Some command specific to a device. '''
+  def __init__(
+    self,
+    app_controller
+    ) -> None:
+    self._reciever = app_controller
+    
+  def execute(self, command):
+    print(f"ExternalDeviceCommand: {command}")
+    # self._reciever.
+    
