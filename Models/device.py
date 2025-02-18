@@ -1,34 +1,31 @@
 import socket
 import threading
+import queue
+import select
+import time
 from queue import Queue
+from Controller.app_controller import EventsManager
 from Models.i_event_listener import IEventListener
 from Models.commands import ShowFrameCommand
+from abc import ABC, abstractmethod
 
 
-class ThreadByteStreamCommunication:
-  # This would watch the thread and raises communication events
-  # It does that by putting a message into a queue
-  # Then a worker therad processes messages in the queue.
-  # Messages can be good or bad, the queue needs to take care of what to do
-  ...
+class IThreadObserver(ABC):
+  
+  @abstractmethod
+  def update(self, message):
+    ...    
 
-
-class ThreadEventWorker:
-  # This worker queue determines what to do with a message.
-  # typically this will be trigering an event
-  ''' Probably something like this.
-    prop device = RemoteDevice
-    prop events = x.events_manager
+class IMessage(ABC):
+  
+  def __init__(self,message,) -> None:
+    ...
     
-    q = device.queue.pop()
-    message = q.get()
-    if message.ok():
-      events.notify("message")
-  '''
-  ...
+  @abstractmethod
+  def execute(self):
+    ...
 
-
-class Message():
+class ByteOrientedMessage(IMessage):
   # This is a message from the socket
   # There is a validate method called ok()
   # Other functions can determine what to do with that.
@@ -40,6 +37,10 @@ class Message():
     self._message_code
     self._message_code_desc
     
+  def execute():
+    ...
+    
+
   def ok(self) -> bool:
     # There could be some c
     match self._message:
@@ -52,21 +53,6 @@ class Message():
         self._message_code_desc = "invalid"
         return False
       
-
-
-class GuiCommandRequestListener(IEventListener):
-  # Listen for an event that needs the gui to do something.
-  def __init__(
-  self,
-  gui_controller,
-  ) -> None:
-    self._reciever = gui_controller
-
-  def update(self, data):
-    self._reciever.execute_command(
-      ShowFrameCommand(self._reciever,data))
-    
-
 class MessageManager():
   ''' Handle events  '''
   def __init__(self):
@@ -102,31 +88,77 @@ class MessageManager():
       for listener in self.listeners[event_type]:
         listener.update(data)
 
+class MessageRecievedListener(IEventListener):
+  def __init__(
+  self,
+  gui_controller,
+  ) -> None:
+    self._reciever = gui_controller
 
-class RemoteDevice():
-  # Is a Publisher
+  '''
+  This thing gets an update and decides what to do.
+  '''
+  def _process_message(self):
+    return True
+
+  def update(self, data):
+    if self._process_message():
+      self._reciever.execute_command(
+        ShowFrameCommand(self._reciever,data))
+
+
+class ThreadByteOrientedMessageListener(threading.Thread):
+  
   def __init__(
     self,
-    host:str='localhost',
-    port:int=50001,
-    device_type:str="Generic Device",
+    queue: queue.Queue,
+    host: str,
+    port: int,
     ) -> None:
-    self._host = host
+    
+    super().__init__()
+    
+    self._queue = queue
+    self._stop_event = threading.Event()
+    self._stopped = threading.Event()
     self._port = port
-    self._device_type = device_type
+    self._host = host
     
-    self.events = MessageManager()
-    self.events.subscribe(
-      "",GuiCommandRequestListener)
+
+  def run(self):
+    self._stop_event.clear()
+    sock = None
     
-    self.messages = []
+    while not self._stop_event.is_set():
+      try:
+        if sock == None:
+          sock = self.get_socket()
+
+        ...
+
+        time.sleep(1)
+      except socket.error:
+        sock = None
+        
+    self._stopped.set()
+        
+      
+  def stop(self):
+    self._stop_event.set()
+    self._stop_event.wait()
+
+
+  def start(self):
+    if not self.is_alive():
+      self._stop_event.clear()
+      super().start()
+    
 
   def get_socket(self) -> socket.socket:
     try:
       sock = socket.socket(
         family = socket.AF_INET,
-        type = socket.SOCK_STREAM,
-      )
+        type = socket.SOCK_STREAM,)
       addr = (self._host, self._port)
       sock.connect(addr)
       print(f"Connected to {self._host} on port {self._port}")
@@ -134,4 +166,106 @@ class RemoteDevice():
     except socket.error as e:
       print(f'socket error: {e}')
       return None
+
+
+  def clear_socket(
+    self,
+    sock: socket.socket,
+    buffer_size = 4096,
+    timeout = 0.5,
+    ) -> None:
+    print("Clearing socket buffer of bytes.")
+    while True:
+      try:
+        readable, _, _ = select([sock],[],[], timeout)
+        if readable:
+          data = sock.recv(buffer_size)
+          if not data:
+            print("Socket buffer is clear.")
+            break
+          else:
+            print(f"Read {len(data)} bytes from the socket.")
+        else:
+          print("Socket buffer is clear.")
+          break
+      except socket.error as e:
+        print(f"clear_socket error: {e}")
+        break
+  
+
+class ThreadMessageQueueWorker(threading.Thread):
+  def __init__(
+    self,
+    message_queue: queue.Queue,
+    listeners
+    ) -> None:
+    
+    super().__init__()
+    
+    self._message_queue = message_queue
+    self._stop_event = threading.Event()
+    self._stopped = threading.Event()
+    self._listeners: EventsManager = listeners
+
+
+  def run(self):
+    self._stopped.clear()
+    while not self._stop_event.is_set():
+      try:
+        message: IMessage = self._message_queue.get()
+        self._listeners.notify(MessageRecievedListener, message)
+      except queue.Empty:
+        continue
+    self._stopped.set()
+
+
+  def start(self):
+    if not self.is_alive():
+      self._stop_event.clear()
+      super().start()
+    
+
+  def stop(self):
+    self._stop_event.set()
+    self._stopped.wait()
+
+
+class RemoteDevice():
+  # Is a Publisher
+  def __init__(
+    self,
+    controller,
+    host:str='localhost',
+    port:int=50001,
+    device_type:str="Generic Device",
+    ) -> None:
+    
+    self._controller = controller
+    self._host = host
+    self._port = port
+    self._device_type = device_type
+    
+    self._events = MessageManager()
+    self._events.subscribe(
+      ByteOrientedMessage,MessageRecievedListener(self._controller))
+
+    self._messages = queue.Queue(10)
+    
+    self._message_producer = ThreadByteOrientedMessageListener(
+      queue=self._messages,
+      host = self._host,
+      port= self._port,
+      )
+    
+    self._message_worker = ThreadMessageQueueWorker(
+      message_queue=self._messages,
+      events=self._events,
+      )
+    
+  def update():
+    ...
+
+  def listen(self):
+    self._message_producer.start()
+    self._message_worker.start()
     

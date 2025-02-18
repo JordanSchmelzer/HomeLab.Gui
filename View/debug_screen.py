@@ -34,22 +34,29 @@ class DebugScreen(ctk.CTkFrame, IUiSubscriber):
       
 
   def create_widgets(self):
+    
     self.random_bg_button = ctk.CTkButton(
       self,
       text="Random Color Bg",
       command=lambda: self.button_click())
-    self.random_bg_button.grid(row=0,column=0, sticky='news')
+    self.random_bg_button.grid(
+      row=0,column=0, 
+      padx=5,pady=5,sticky='news')
     ButtonStyles.apply_styles(self.random_bg_button)
     
+
     self.toggle_button_on_state = False
     self.toggle_button=ctk.CTkButton(
       self,
       text="ToggleButton",
       command=lambda: self.toggle_button_click(self.toggle_button),
       )
-    self.toggle_button.grid(row=0,column=1, sticky='news')
+    self.toggle_button.grid(
+      row=0,column=1,
+      padx=5,pady=5,sticky='news')
     ButtonStyles.apply_styles(self.toggle_button)
     print(self.toggle_button._fg_color)
+
 
 
   def toggle_button_click(self, widget: ctk.CTkBaseClass):

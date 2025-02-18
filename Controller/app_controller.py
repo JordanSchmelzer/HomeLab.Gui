@@ -70,12 +70,15 @@ class AppController(ctk.CTk):
   def __init__(
     self,
     view: app_view = None,
+    title = "HomeLab",
+    width = 1000,
+    height = 600,
     ) -> None:
     super().__init__()
     self.view: app_view = app_view(self)
     self.history = CommandHistory()
-    self.title("HomeLab")
-    self.geometry("600x600")
+    self.title(title)
+    self.geometry(f"{width}x{height}")
     
     if self.view != None:
       self.view.show_start_frame()
