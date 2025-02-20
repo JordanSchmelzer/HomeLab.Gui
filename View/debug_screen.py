@@ -1,10 +1,12 @@
 import customtkinter as ctk
 from Models.i_ui_subscriber import IUiSubscriber
-from View.Styles.button_styles import ButtonStyles
+from View.Styles.styles import StyleWidget
 from Models.commands import ChangeBackgroundCommand
 import random
 import threading
 import time
+
+from View.Styles.styles import StyleWidget
 
 
 class ThreadWidget():
@@ -42,7 +44,7 @@ class DebugScreen(ctk.CTkFrame, IUiSubscriber):
     self.random_bg_button.grid(
       row=0,column=0, 
       padx=5,pady=5,sticky='news')
-    ButtonStyles.apply_styles(self.random_bg_button)
+    StyleWidget.apply_styles(self.random_bg_button)
     
 
     self.toggle_button_on_state = False
@@ -54,7 +56,7 @@ class DebugScreen(ctk.CTkFrame, IUiSubscriber):
     self.toggle_button.grid(
       row=0,column=1,
       padx=5,pady=5,sticky='news')
-    ButtonStyles.apply_styles(self.toggle_button)
+    StyleWidget.apply_styles(self.toggle_button)
     print(self.toggle_button._fg_color)
 
 

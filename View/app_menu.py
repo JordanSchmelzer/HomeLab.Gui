@@ -4,7 +4,7 @@ from View.home_screen import HomeScreen
 from View.debug_screen import DebugScreen
 
 
-class app_menu(ctk.CTkFrame):
+class AppMenu(ctk.CTkFrame):
   def __init__(
     self,
     parent,
@@ -21,8 +21,7 @@ class app_menu(ctk.CTkFrame):
   def create_layout(self):
     for row in range(10):
       self.rowconfigure(row,weight=1)
-    #for col in range(0):
-    #  self.columnconfigure(col,weight=1)    
+    self.columnconfigure(0,weight=1)    
 
   def create_widgets(self):
     
@@ -63,7 +62,7 @@ class app_menu(ctk.CTkFrame):
     self.placeholder2_button = ctk.CTkButton(
       master=self,
       text="Placeholder 2",
-      command= lambda: self.placeholder2_button_click()
+      command= lambda: self.placeholder2_button_click(),
       )
     self.placeholder2_button.grid(
       row=3,

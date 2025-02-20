@@ -1,10 +1,10 @@
 import customtkinter as ctk
 from View.home_screen import HomeScreen
 from View.debug_screen import DebugScreen
-from View.app_menu import app_menu
+from View.app_menu import AppMenu
 
 
-class app_view(ctk.CTkFrame):
+class AppView(ctk.CTkFrame):
   def __init__(
     self,
     parent,
@@ -24,7 +24,7 @@ class app_view(ctk.CTkFrame):
       self.columnconfigure(col,weight=1)
 
   def add_frames(self):
-    self.menu = app_menu(self, self.controller)
+    self.menu = AppMenu(self, self.controller)
     self.menu.grid(
       row=0, rowspan=10, 
       column=0, columnspan=1,

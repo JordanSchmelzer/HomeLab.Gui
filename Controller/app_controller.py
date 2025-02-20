@@ -1,10 +1,9 @@
 from tkinter import Button
 import customtkinter as ctk
-from View.app_container import app_view
+from View.view import AppView
 from Models.commands import Command, ExternalDeviceCommand
 from Models.i_event_listener import IEventListener
 from typing import List
-from View.Styles.button_styles import ButtonStyles
 
 
 class ExternalDeviceListener(IEventListener):
@@ -69,13 +68,13 @@ class AppController(ctk.CTk):
   # Subject & Invoker
   def __init__(
     self,
-    view: app_view = None,
+    view: AppView = None,
     title = "HomeLab",
     width = 1000,
     height = 600,
     ) -> None:
     super().__init__()
-    self.view: app_view = app_view(self)
+    self.view: AppView = AppView(self)
     self.history = CommandHistory()
     self.title(title)
     self.geometry(f"{width}x{height}")
@@ -114,7 +113,6 @@ class AppController(ctk.CTk):
     frame = self.view.get_frame(frame_id)
     frame.configure(fg_color=color)
   
-
   def run(self):
     self.mainloop()
   
