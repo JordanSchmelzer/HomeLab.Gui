@@ -1,12 +1,12 @@
-from tkinter import Button
 import customtkinter as ctk
-from View.view import AppView
 from Models.commands import Command, ExternalDeviceCommand
-from Models.i_event_listener import IEventListener
-from typing import List
+from View.game_frame import GameFrame
+from View.home_screen import HomeScreen
+from View.debug_screen import DebugScreen
+from View.app_menu import AppMenu
 
 
-class ExternalDeviceListener(IEventListener):
+class ExternalDeviceListener():
   def __init__(
     self,
     connection
@@ -51,18 +51,57 @@ class EventsManager():
     if event_type in self.listeners:
       for listener in self.listeners[event_type]:
         listener.update(data)
+        
 
+class AppView(ctk.CTkFrame):
+  def __init__(
+    self,
+    parent,
+    ) -> None:
+    super().__init__(master=parent)
+    self.configure_layout()
+    self.controller = parent
+    self.frames = {}
+    self.add_frames()
+    
+    self.pack(side="top",fill="both",expand=True)    
 
-class CommandHistory:
-  def __init__(self):
-    self.history: List[Command] = []
-    
-  def push(self, c: Command):
-    self.history.append(c)
-    
-  def pop(self) -> Command:
-    return self.history.pop()
-          
+  def configure_layout(self):
+    for row in range(10):
+      self.rowconfigure(row,weight=1)
+    for col in range(10):
+      self.columnconfigure(col,weight=1)
+
+  def add_frames(self):
+    self.menu = AppMenu(self, self.controller)
+    self.menu.grid(
+      row=0, rowspan=10, 
+      column=0, columnspan=1,
+      padx=5, pady=5, sticky='news')
+
+    for F in (
+      HomeScreen,
+      DebugScreen,
+      GameFrame
+      ):
+      frame = F(self, self.controller)
+      self.frames[F] = frame
+      frame.grid(
+        row=0,rowspan=10,
+        column=1, columnspan=9,
+        padx=5,pady=5, sticky='news'
+        )
+
+  def show_frame(self, frame):
+    _frame = self.frames[frame]
+    _frame.tkraise()
+
+  def get_frame(self, frame):
+    return self.frames[frame]
+
+  def show_start_frame(self):
+    self.show_frame(HomeScreen)
+      
 
 class AppController(ctk.CTk):
   # Subject & Invoker
@@ -75,7 +114,6 @@ class AppController(ctk.CTk):
     ) -> None:
     super().__init__()
     self.view: AppView = AppView(self)
-    self.history = CommandHistory()
     self.title(title)
     self.geometry(f"{width}x{height}")
     
@@ -92,6 +130,7 @@ class AppController(ctk.CTk):
     self._on_start = None
     self._on_finish = None
     
+
   def register_event_listeners(self):
     self.events.subscribe(ExternalDeviceCommand,self.events)
 

@@ -1,65 +1,35 @@
 import customtkinter as ctk
-from Models.i_ui_subscriber import IUiSubscriber
-from View.Styles.styles import StyleWidget
 from Models.commands import ChangeBackgroundCommand
 import random
 import threading
 import time
 
-from View.Styles.styles import StyleWidget
 
-
-class ThreadWidget():
-  def __init__(self):
-    ...
-    
-
-class DebugScreen(ctk.CTkFrame, IUiSubscriber):
-  def __init__(
-      self,
-      parent,
-      controller,
-      ) -> None:
-    super().__init__(
-      master=parent,
-      )
-    self.setup_grid()
-    self.create_widgets()
+class DebugScreen(ctk.CTkFrame):
+  def __init__(self, parent, controller) -> None:
+    super().__init__(master=parent,)
     self.controller = controller
+    self.toggle_button_on_state = False
+    self.create_widgets()
 
-
-  def setup_grid(self):
+  def create_widgets(self):
     for row in range(10):
       self.rowconfigure(row,weight=1)
     for col in range(10):
       self.columnconfigure(col,weight=1)
-      
-
-  def create_widgets(self):
     
     self.random_bg_button = ctk.CTkButton(
       self,
       text="Random Color Bg",
       command=lambda: self.button_click())
-    self.random_bg_button.grid(
-      row=0,column=0, 
-      padx=5,pady=5,sticky='news')
-    StyleWidget.apply_styles(self.random_bg_button)
-    
+    self.random_bg_button.grid(row=0,column=0,  padx=5,pady=5,sticky='news')
 
-    self.toggle_button_on_state = False
     self.toggle_button=ctk.CTkButton(
       self,
       text="ToggleButton",
       command=lambda: self.toggle_button_click(self.toggle_button),
       )
-    self.toggle_button.grid(
-      row=0,column=1,
-      padx=5,pady=5,sticky='news')
-    StyleWidget.apply_styles(self.toggle_button)
-    print(self.toggle_button._fg_color)
-
-
+    self.toggle_button.grid(row=0,column=1, padx=5,pady=5,sticky='news')
 
   def toggle_button_click(self, widget: ctk.CTkBaseClass):
     if not self.toggle_button_on_state:
@@ -103,7 +73,6 @@ class DebugScreen(ctk.CTkFrame, IUiSubscriber):
       time.sleep(.05)
     # Reset to starting color.
     widget.configure(fg_color=base_color)
-
 
   def button_click(self):
     self.controller.execute_command(
