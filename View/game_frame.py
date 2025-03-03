@@ -1,6 +1,6 @@
+from re import A
 import customtkinter as ctk
 from random import randint
-import threading
 import time
 from dataclasses import dataclass
 
@@ -12,27 +12,32 @@ class GameState:
   dealer_hand = []
   player_bet = 0
   player_bank = 200000
+  max_bet = 5000
+  bet_level = 1
+  current_bet = 0
   
-  start_phase = True
-  bet_phase = False
-  round_complete = False
-
-  doubled_down = False
-  player_win = False
-  player_bust = False
-  dealer_bust = False
-  push = False
+  bets_placed = False
+  show_face_down_card = False
+  dealer_dealt = False
+  player_stay = False
+  game_over = False
+  dealt_rounds = 0
+  command_slots = {}
 
 
 class GameFrame(ctk.CTkFrame):
   def __init__(self, parent, controller):
     super().__init__(master=parent)
     self._controller = controller
+    self.rowconfigure(0,weight=1)
+    self.columnconfigure(0,weight=1)
+
     self._state = GameState()
     self._state.deck = self.new_deck()
-    
-    self._canvas = ctk.CTkCanvas(self, bg='white')
-    self._canvas.pack(fill=ctk.BOTH)
+   
+    self._canvas = ctk.CTkCanvas(self, bg='white',height=500,width=500,bd=3,relief='groove')
+
+    self._canvas.grid(row=0,column=0, padx=5,pady=5)
     self._canvas.bind("<Button-1>", self.on_canvas_click)
     self.draw()
 
@@ -52,7 +57,7 @@ class GameFrame(ctk.CTkFrame):
   def shuffle_deck(deck):
     ''' Fisher-Yates Algorithm
     '''
-    deck_size = deck.__len__()
+    deck_size = deck.__len__() - 1
     # Start from the last element and swap one by one.
     # We dont need to run for the first element, hence why i > 0.
     for i in range(deck_size-1, 0, -1):
@@ -69,67 +74,287 @@ class GameFrame(ctk.CTkFrame):
     return card
   
 
-  def on_canvas_click(self, event, rect_coords):
-    # What did the user click?
-    margin = 10
-    x1, y1, x2, y2 = rect_coords
-    return (x1 - margin <= event.x <= x2 + margin) and (y1 - margin <= event.y <= y2 + margin)
-  
+  def on_canvas_click(self, event):
+    # rect = x1, y1, x2, y2
+    # Controls Clicked?
+    for slot in self._state.command_slots:
+      if self.is_inside_rect(event, self._state.command_slots[slot]["coords"]):
+        self._state.command_slots[slot]["func"]()
+
 
   def draw(self):
+    self._canvas.delete('all')
     self.draw_ui()
     self.draw_cards()
 
 
   def draw_cards(self):
-    # Draw Players Cards
-    
+    # Draw the deck
+    card_width = 75
+    card_ratio = 3.5 / 2.5
+    card_height = card_width * card_ratio
+    self._canvas.create_rectangle((0,0),(card_width,card_height), fill='purple', tags=["deck"])    
 
     # Draw Dealers Cards
-    ...
+    padx = 20
+    pady = 50
+    y1 = 250 - card_height - 20
+    y2 = y1 + card_height
+    start_x = 100
+    for index in range(self._state.dealer_hand.__len__()):
+      #print(self._state.dealer_hand.__len__(), index)
+      x1 = start_x + (index * card_width) + (padx * index)
+      coords = (x1, y1, x1+card_width, y2),
+      #print(f"x1:{x1} y1:{y1} x2:{x1+card_width} y2:{y2}")
+
+      if index == 0 and not self._state.show_face_down_card:
+        # You just see the back of the card
+        self._canvas.create_rectangle(coords,fill="purple")
+      else:
+        self._canvas.create_rectangle(coords,fill="white")
+        
+    # Draw Players Cards
+    padx = 20
+    pady = 10
+    y1 = 270
+    y2 = y1 + card_height
+    start_x = 100
+    for index in range(self._state.player_hand.__len__()):
+      x1 = start_x + (index * card_width) + (padx * index)
+      coords = (x1, y1, x1+card_width, y2),
+      #print(f"x1:{x1} y1:{y1} x2:{x1+card_width} y2:{y2}")
+      card: str = self._state.player_hand[index]
+      self._canvas.create_rectangle(coords,fill="white")
+      
+      # Draw Suit
+      if card[1] == "c":
+        ...
+      elif card[1] == "d":
+        # Draw Diamonds
+        # Calculate the points for the diamond shape
+        x = x1 + 5
+        y = y1 + 20
+        size = 10
+        points = [
+            x, y + size // 4,
+            x + size // 2, y - size // 2,
+            x + size, y + size // 4,
+            x + size // 2, y + size,
+        ]
+        self._canvas.create_polygon(points, fill='red', smooth=False)
+        
+        x = x1 + card_width - 5 - size
+        y = y2 - 15 - size
+        size = 10
+        points = [
+            x, y + size // 4,
+            x + size // 2, y - size // 2,
+            x + size, y + size // 4,
+            x + size // 2, y + size,
+        ]
+        self._canvas.create_polygon(points, fill='red', smooth=False)
+      elif card[1] == "h":
+        ...
+      elif card[1] == "s":
+        size = 10
+        x = x1 + 5
+        y = y1 + 20
+        # Coordinates for the spade shape
+        spade_coords = [
+            x, y,
+            x - size * 0.5, y + size * 0.6,
+            x, y + size,
+            x + size * 0.5, y + size * 0.6,
+            x, y
+        ]
+        # Coordinates for the spade stem
+        stem_coords = [
+            x - size * 0.1, y + size,
+            x + size * 0.1, y + size,
+            x + size * 0.1, y + size * 1.4,
+            x - size * 0.1, y + size * 1.4
+        ]
+        # Draw the spade shape
+        self._canvas.create_polygon(spade_coords, fill='black', smooth=True)
+        # Draw the stem of the spade
+        self._canvas.create_polygon(stem_coords, fill='black')
+
+      # Draw Value
+      self._canvas.create_text(x1 + 10, y1 + 10, text=card[0] if card[0] !="1" else "10", anchor='c')
+      self._canvas.create_text((x1 + card_width) - 10, y2 - 10, text=card[0] if card[0] !="1" else "10", anchor='c')
+
 
   def draw_ui(self):
-    if self._state.start_phase == True:
-      ...
-    if self._state.bet_phase == True:
-      ...
-    if self._state.round_complete == True:
-      ...
-    # Draw Deal button
-    # Draw Stay Button
-    # Draw Double Down Button
-    # Draw Place Bet Button
-    # Draw Max Bet Button
-    # Draw Increase Bet Button
-    # Draw Decrease Beet Button
-    # Draw Check Cards Button
-    # Draw Check Dealers Cards Button
-    ...
+    self._state.command_slots = {}
+    padx = 20
+    pady = 10
+    width = 100
+    y1 = 420
+    y2 = 500
+    start_x = 0
 
-  def on_deal_btn_click(self,event):
+    # Score Box, Current Bet
+    if self._state.bets_placed:
+      self._canvas.create_text(450,10,text=f"Bet: {self._state.current_bet}", anchor='c')
+    else:
+      self._canvas.create_text(250,350,text=f"Your Bet: {self._state.current_bet}",anchor='c')
+    
+    # Line that splits board
+    self._canvas.create_line((0,250),(500,250),dash=1)
+
+    for slot_num in range(5):
+      x1 = start_x + (slot_num * width) + (padx * slot_num)
+      self._state.command_slots.update({
+        slot_num: {
+          "coords": (x1, y1, x1 + width, y2),
+          "func": None
+          }
+        })
+
+    if not self._state.bets_placed:
+      # Draw Place Bet Button
+      index = 0
+      x1, y1, x2, y2 = self._state.command_slots[index]["coords"]
+      self._state.command_slots[index]["func"] = self.on_place_bet_button_click
+      self._canvas.create_rectangle((x1,y1,x2,y2), fill='#04a5e5', tags=["controls","place_bet_button"])
+      self._canvas.create_text((x1 + ((x2 - x1)/2),y1 + ((y2 - y1) / 2)), text="Enter Bet", anchor='c', tags=["place_bet_button"])
+      
+      # Draw Max Bet Button
+      index = 1
+      x1, y1, x2, y2 = self._state.command_slots[index]["coords"]
+      self._state.command_slots[index]["func"] = self.on_max_bet_button_click
+      self._canvas.create_rectangle((x1,y1,x2,y2), fill='#df8e1d', tags=["controls","max_bet_button"])
+      self._canvas.create_text((x1 + ((x2 - x1)/2),y1 + ((y2 - y1) / 2)), text="Max Bet", anchor="c", tags=["max_bet_button"])      
+
+      # Draw Increase Bet Button
+      index = 2
+      x1, y1, x2, y2 = self._state.command_slots[index]["coords"]
+      self._state.command_slots[index]["func"] = self.on_bet_increase_click
+      self._canvas.create_rectangle((x1,y1,x2,y2), fill='#40a02b', tags=["controls","increase_bet_button"])
+      self._canvas.create_text((x1 + ((x2 - x1)/2),y1 + ((y2 - y1) / 2)), text="Raise Bet", anchor="c", tags=["increase_bet_button"])
+      
+      # Draw Decrease Beet Button
+      index = 3
+      x1, y1, x2, y2 = self._state.command_slots[index]["coords"]
+      self._state.command_slots[index]["func"] = self.on_bet_decrease_click
+      self._canvas.create_rectangle((x1,y1,x2,y2), fill='#e64553', tags=["controls","decrease_bet_button"])
+      self._canvas.create_text((x1 + ((x2 - x1)/2),y1 + ((y2 - y1) / 2)), text="Lower Bet", anchor="c", tags=["decrease_bet_button"])
+
+    if self._state.bets_placed:
+      # Draw Stay Button
+      index = 0 
+      x1, y1, x2, y2 = self._state.command_slots[index]["coords"]
+      self._state.command_slots[index]["func"] = self.on_stay_btn_click
+      self._canvas.create_rectangle((x1,y1,x2,y2), fill='green', tags=["controls","stay_button"])
+      self._canvas.create_text((x1 + ((x2 - x1)/2),y1 + ((y2 - y1) / 2)), text="Stay", anchor="c", tags=["stay_button"])
+
+      # Draw Hit Button
+      index = 1
+      x1, y1, x2, y2 = self._state.command_slots[index]["coords"]
+      self._state.command_slots[index]["func"] = self.on_deal_btn_click
+      self._canvas.create_rectangle((x1,y1,x2,y2), fill='#dd7878',tags=["controls","hit_button"])
+      self._canvas.create_text((x1 + ((x2 - x1)/2),y1 + ((y2 - y1) / 2)), text="Hit", anchor="c", tags=["hit_button"])
+
+    if self._state.dealer_dealt and self._state.dealt_rounds <= 2:
+      # Draw Double Down Button
+      index = 2
+      x1, y1, x2, y2 = self._state.command_slots[index]["coords"]
+      self._state.command_slots[index]["func"] = self.on_dbl_down_button_click
+      self._canvas.create_rectangle((x1,y1,x2,y2), fill='red', tags=["controls","double_down_button"])
+      self._canvas.create_text((x1 + ((x2 - x1)/2),y1 + ((y2 - y1) / 2)), text="Double Down", anchor="c", tags=["double_down_button"])
+    
+    if self._state.game_over:
+      ...
+
+
+  def is_inside_rect(self, event, button_cords) -> bool:
+    margin = 10 # Margin to consider near the rectangle
+    x1, y1, x2, y2 = button_cords
+    return (x1 - margin <= event.x <= x2 + margin) and (y1 - margin <= event.y <= y2 + margin)
+
+
+  def on_deal_btn_click(self):
     print("Deal Button Clicked!")
+    initial_count = self._state.player_hand.__len__()
+    self._state.player_hand.append(self.deal(self._state.deck))
+    self.draw()
     
-  def on_stay_btn_click(self,event):
+    assert self._state.player_hand.__len__() == initial_count + 1    
+    for card in self._state.player_hand:
+      assert card != None
+
+
+  def on_stay_btn_click(self):
     print("Stay Button Clicked!")
+    self._state.show_face_down_card = True
     
-  def on_dbl_down_button_click(self,event):
+    # Draw until bust or win
+    
+    
+
+  def on_dbl_down_button_click(self):
     print("Double Down Button Clicked!")
+   
     
   def on_place_bet_button_click(self):
-    print("Place Bet Button Clicked!")
+    if not self._state.current_bet > 0:
+      return
+
+    # When bets placed, deal a card to player then dealer
+    self._state.bets_placed = True
+    # Update the UI Elements
+    self.draw()
+    # Deal to the dealer
+    self._state.dealer_hand.append(self.deal(self._state.deck))
+    time.sleep(0.1)
+    self.draw()
+    # Deal to the player
+    self._state.player_hand.append(self.deal(self._state.deck))
+    time.sleep(0.1)
+    self.draw()
+    # Deal to the dealer
+    self._state.dealer_hand.append(self.deal(self._state.deck))
+    time.sleep(0.1)
+    self.draw()
     
+
   def on_max_bet_button_click(self):
     print("Place Max Bet Button Clicked!")
+    self._state.current_bet = 5000
+    self.draw()
+
 
   def on_bet_increase_click(self):
     print("Bet Increase Button Clicked!")
     
+    if self._state.current_bet >= self._state.max_bet:
+      return
+    
+    if 0 <= self._state.current_bet <100:
+      self._state.current_bet+=10
+      
+    if 100 <= self._state.current_bet <500:
+      self._state.current_bet+=50
+      
+    if 500<= self._state.current_bet <5000:
+      self._state.current_bet+=500
+    self.draw()
+    
+
   def on_bet_decrease_click(self):
     print("Bet Decrease Button Clicked!")
     
-  def on_check_cards_click(self):
-    print("Check Cards Button Clicked!")
+    if self._state.current_bet == 0:
+      return
     
-  def on_check_dealers_card_click(self):
-    print("Check Dealers Cards Button Clicked!")
-
+    if 0 <= self._state.current_bet <100:
+      self._state.current_bet-=10
+      
+    if 100 <= self._state.current_bet <500:
+      self._state.current_bet-=50
+      
+    if 500<= self._state.current_bet <=5000:
+      self._state.current_bet-=500
+    
+    self.draw()
+    
