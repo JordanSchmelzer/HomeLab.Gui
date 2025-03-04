@@ -1,4 +1,3 @@
-from re import A
 import customtkinter as ctk
 from random import randint
 import time
@@ -13,9 +12,8 @@ class GameState:
   player_bet = 0
   player_bank = 200000
   max_bet = 5000
-  bet_level = 1
   current_bet = 0
-  
+  doubled_down = False
   bets_placed = False
   show_face_down_card = False
   dealer_dealt = False
@@ -23,6 +21,7 @@ class GameState:
   game_over = False
   dealt_rounds = 0
   command_slots = {}
+  dealer_stands_at = 17
 
 
 class GameFrame(ctk.CTkFrame):
@@ -128,7 +127,21 @@ class GameFrame(ctk.CTkFrame):
       
       # Draw Suit
       if card[1] == "c":
-        ...
+        x = x1 + 5
+        y = y1 + 20
+        size = 10
+        # Draw the three circles of the club
+        circle_radius = size // 3
+        # Top Oval
+        self._canvas.create_oval(x - circle_radius - 5, y - circle_radius - 5 , x + circle_radius, y + circle_radius - 5, fill='black')
+        # Left Oval
+        self._canvas.create_oval(x - size//2, y - size//2 - circle_radius, x - size//2 + 2 * circle_radius, y - size//2 + 2 * circle_radius, fill='black')
+        # Right Oval
+        self._canvas.create_oval(x + size//2 - 2 * circle_radius, y - size//2 - circle_radius, x + size//2, y - size//2 + 2 * circle_radius, fill='black')
+
+        # Draw the stem of the club
+        self._canvas.create_rectangle(x - size // 10, y, x + size // 10, y + size // 2, fill='black')
+        
       elif card[1] == "d":
         # Draw Diamonds
         # Calculate the points for the diamond shape
@@ -153,8 +166,30 @@ class GameFrame(ctk.CTkFrame):
             x + size // 2, y + size,
         ]
         self._canvas.create_polygon(points, fill='red', smooth=False)
+        
       elif card[1] == "h":
-        ...
+        size = 10
+        x = x1 + 5
+        y = y1 + 20
+        # Calculate the points for the heart shape
+        top_left = x - size // 2, y - size // 4
+        top_right = x + size // 2, y - size // 4
+        bottom = x, y + size // 2
+    
+        # Create the left half of the heart
+        self._canvas.create_arc(top_left[0], top_left[1], top_right[0], y + size // 4, start=0, extent=180, style=ctk.ARC)
+    
+        # Create the right half of the heart
+        self._canvas.create_arc(top_left[0], top_left[1], top_right[0], y + size // 4, start=180, extent=180, style=ctk.ARC)
+    
+        # Draw the bottom triangle of the heart
+        points = [
+            top_left[0], y,
+            top_right[0], y,
+            bottom[0], bottom[1]
+        ]
+        self._canvas.create_polygon(points, fill='red')
+        
       elif card[1] == "s":
         size = 10
         x = x1 + 5
@@ -273,28 +308,114 @@ class GameFrame(ctk.CTkFrame):
     return (x1 - margin <= event.x <= x2 + margin) and (y1 - margin <= event.y <= y2 + margin)
 
 
+  @staticmethod
+  def get_hand_value(hand:list) -> int:
+    aces = 0
+    value = 0
+    for card in hand:
+      match card[0]:
+        case "A":
+          # We'll determine the value last.
+          aces += 1
+        case "J":
+          value+=10
+        case "Q":
+          value+=10
+        case "K":
+          value+=10
+        case "1":
+          value+=10
+        case _:
+          value+=int(card[0])
+    for ace in range(aces):
+      if 11 + value > 21:
+        value +=1
+      else:
+        value +=11
+    return value
+
+
   def on_deal_btn_click(self):
     print("Deal Button Clicked!")
     initial_count = self._state.player_hand.__len__()
     self._state.player_hand.append(self.deal(self._state.deck))
     self.draw()
-    
+    time.sleep(.2)    
+    if self.get_hand_value(self._state.player_hand) >= 21:
+      self.determine_winner()
+      return
+
     assert self._state.player_hand.__len__() == initial_count + 1    
     for card in self._state.player_hand:
       assert card != None
 
 
+  def next_round(self):
+    # Shuffle the dealer and players cards back into the deck
+    while self._state.player_hand:
+      card = self._state.player_hand.pop()
+      self._state.deck.append(card)
+    while self._state.dealer_hand:
+      card = self._state.dealer_hand.pop()
+      self._state.deck.append(card)
+    self.shuffle_deck(self._state.deck)
+    # Reset relevant state flags
+    self._state.current_bet = 0
+    self._state.dealt_rounds = 0
+    self._state.bets_placed = False
+    self._state.doubled_down = False
+    self._state.show_face_down_card = False
+    self._state.game_over = False
+    self._state.dealer_dealt = False
+    # Redraw the screen
+    self.draw()
+
+
+  def determine_winner(self):
+    dealer_hand_val = self.get_hand_value(self._state.dealer_hand)   
+    player_hand_val = self.get_hand_value(self._state.player_hand)
+
+    # determine if dealer win or lose
+    if dealer_hand_val > 21 | dealer_hand_val < player_hand_val:
+      # Dealer Bust / Player Win
+      self._state.player_bank += self._state.current_bet
+      if self._state.doubled_down:
+        self._state.player_bank += self._state.current_bet
+      
+    if dealer_hand_val == player_hand_val:
+      # Push
+      ...
+      
+    if dealer_hand_val > player_hand_val:
+      # Dealer Win
+      self._state.player_bank -= self._state.current_bet
+      if self._state.doubled_down:
+        self._state.player_bank -= self._state.current_bet
+      
+    self.next_round()
+
+
   def on_stay_btn_click(self):
     print("Stay Button Clicked!")
+    # Flip the hidden card and show player
     self._state.show_face_down_card = True
-    
-    # Draw until bust or win
-    
-    
+    self._draw()
+    # Dealer draws until stay
+    dealer_hand_val = self.get_hand_value(self._state.dealer_hand)
+    while dealer_hand_val < self._state.dealer_stands_at:
+      self._state.dealer_hand.append(self.deal(self._state.deck))
+      dealer_hand_val = self.get_hand_value(self._state.dealer_hand)
+      if dealer_hand_val <= self._state.dealer_stands_at:
+        break
+    self.determine_winner()
+          
 
   def on_dbl_down_button_click(self):
     print("Double Down Button Clicked!")
-   
+    assert self._state.dealt_rounds <= 2
+    assert self._state.player_bank - (self._state.current_bet * 2) >= 0
+    self._state.doubled_down = True
+
     
   def on_place_bet_button_click(self):
     if not self._state.current_bet > 0:
