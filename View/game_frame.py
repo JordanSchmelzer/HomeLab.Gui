@@ -1,5 +1,3 @@
-from re import T
-import threading
 import customtkinter as ctk
 from random import randint
 import time
@@ -107,6 +105,7 @@ class GameFrame(ctk.CTkFrame):
 
   @staticmethod
   def deal(deck: list) -> str:
+    # Deal a card
     card = deck.pop()
     return card
   
@@ -140,41 +139,6 @@ class GameFrame(ctk.CTkFrame):
     # Redraw the screen
     self.draw()
 
-
-  def determine_winner(self):
-    dealer_hand_val = self.get_hand_value(self._state.dealer_hand)   
-    player_hand_val = self.get_hand_value(self._state.player_hand)
-
-    # determine if dealer win or lose
-    if dealer_hand_val > 21 | dealer_hand_val < player_hand_val:
-      total_gained = self._state.current_bet
-      # Dealer Bust / Player Win
-      self._state.player_bank += total_gained
-      if self._state.doubled_down:
-        self._state.player_bank += total_gained
-        total_gained = total_gained * 2
-      self._state.game_over = True
-      self._state.game_over_message = f"You Wins! +{total_gained}."      
-
-    if dealer_hand_val == player_hand_val:
-      # Push
-      self._state.game_over = True
-      self._state.game_over_message = "Push! Nobody wins."
-      
-    if dealer_hand_val > player_hand_val:
-      # Dealer Win
-      total_lost = self._state.current_bet
-      self._state.player_bank -= total_lost
-      if self._state.doubled_down:
-        self._state.player_bank -= total_lost
-        total_lost = total_lost * 2
-      self._state.game_over = True
-      self._state.game_over_message = f"Dealer Wins! -{total_lost}."
-    
-    # Show the end game message
-    self.draw()
-    time.sleep(.5)
-    self.next_round()
 
   ## -- End Utils --
   ## -- Drawing Functions --
@@ -353,6 +317,12 @@ class GameFrame(ctk.CTkFrame):
 
   def draw_ui(self):
     self._state.command_slots = {}
+    if self._state.bets_placed:
+      # Draw the player score
+      self._canvas.create_text(text=f"{}")
+      if self._state.show_face_down_card:
+        # Draw the dealer score
+
 
     # Score Box, Current Bet, Win Message 
     if self._state.bets_placed and not self._state.game_over:
@@ -424,7 +394,7 @@ class GameFrame(ctk.CTkFrame):
       # Draw Hit Button
       index = 1
       x1, y1, x2, y2 = self._state.command_slots[index]["coords"]
-      self._state.command_slots[index]["func"] = self.on_deal_btn_click
+      self._state.command_slots[index]["func"] = self.on_hit_btn_click
       self._canvas.create_rectangle((x1,y1,x2,y2), fill='#dd7878',tags=["controls","hit_button"])
       self._canvas.create_text((x1 + ((x2 - x1)/2),y1 + ((y2 - y1) / 2)), text="Hit", anchor="c", tags=["hit_button"])
 
@@ -439,32 +409,106 @@ class GameFrame(ctk.CTkFrame):
   ## -- End Drawing Functions --
   ## -- Button Clicks --
 
-  def on_deal_btn_click(self):
-    initial_count = self._state.player_hand.__len__()
+  def game_over(self, winner=None) -> None:
+    ''' args: winner =  "dealer" or "player" or None'''
+    player_hand_val = self.get_hand_value(self._state.player_hand)
+    dealer_hand_val = self.get_hand_value(self._state.dealer_hand)   
+
+    # determine if dealer win or lose
+    if winner == "player":
+      # Dealer Bust / Player Win
+      total_gained = self._state.current_bet
+      self._state.player_bank += total_gained
+      if self._state.doubled_down:
+        self._state.player_bank += total_gained
+        total_gained = total_gained * 2
+      self._state.game_over = True
+      self._state.game_over_message = f"You Win! +{total_gained}."      
+
+    if winner == None:
+      # Push
+      self._state.game_over = True
+      self._state.game_over_message = "Push! Nobody wins."  
+
+    if winner == "dealer":
+      # Dealer Win
+      total_lost = self._state.current_bet
+      self._state.player_bank -= total_lost
+      if self._state.doubled_down:
+        self._state.player_bank -= total_lost
+        total_lost = total_lost * 2
+      self._state.game_over = True
+      self._state.game_over_message = f"Dealer Wins! -{total_lost}."
+    
+    # Show the end game message
+    self.draw()
+    time.sleep(3)
+    self.next_round()
+    
+    return
+
+  def on_hit_btn_click(self):
+    # draw a card and render it
     self._state.player_hand.append(self.deal(self._state.deck))
     self.draw()
-    time.sleep(.2)    
+    time.sleep(.2)
+    
     if self.get_hand_value(self._state.player_hand) >= 21:
-      self.determine_winner()
+      self.game_over(winner="dealer")
       return
-    assert self._state.player_hand.__len__() == initial_count + 1    
-    for card in self._state.player_hand:
-      assert card != None
-      
 
-  def on_stay_btn_click(self):
+
+  def on_stay_btn_click(self) -> None:
     # Flip the hidden card and show player
+    dealer_hand_val = self.get_hand_value(self._state.dealer_hand)
+    player_hand_val = self.get_hand_value(self._state.player_hand)
     self._state.show_face_down_card = True
     self.draw()
-    time.sleep(4)
-    # Dealer draws until stay
-    dealer_hand_val = self.get_hand_value(self._state.dealer_hand)
+    time.sleep(.25)
+
+    if dealer_hand_val > player_hand_val:
+      # Dealer Win on Flip Edge Case
+      self.game_over(winner="dealer")
+      return
+    
+    # Do this to skip the drawing loop
+    if dealer_hand_val >= 17:
+      # Did the dealer win?
+      if dealer_hand_val > player_hand_val:
+        self.game_over(winner="dealer")
+        return
+      # Did the player win?
+      if dealer_hand_val < player_hand_val:
+        self.game_over(winner="player")
+        return
+      # Push?
+      if dealer_hand_val == player_hand_val:
+        self.game_over(winner=None)
+        return
+
+    # Dealer draws until stay limit is met or exceeded
     while dealer_hand_val < self._state.dealer_stands_at:
       self._state.dealer_hand.append(self.deal(self._state.deck))
+      self.draw() # Render the dealt card
+      time.sleep(.25)
+      
+      # Check if at or past the stand value
       dealer_hand_val = self.get_hand_value(self._state.dealer_hand)
-      if dealer_hand_val <= self._state.dealer_stands_at:
-        break
-    self.determine_winner()
+      if dealer_hand_val >= self._state.dealer_stands_at:
+        # At the stand value, check to see who won
+        # Did the dealer win?
+        if dealer_hand_val > player_hand_val:
+          self.game_over(winner="dealer")
+          return
+        # Did the player win?
+        if dealer_hand_val < player_hand_val:
+          self.game_over(winner="player")
+          return
+        # Push?
+        if dealer_hand_val == player_hand_val:
+          self.game_over(winner=None)
+          return
+
           
 
   def on_dbl_down_button_click(self):
